@@ -1,7 +1,10 @@
 package first.robot.subsystems.drivetrain;
 
+import static org.wpilib.units.Units.Degrees;
+
 import org.wpilib.command2.SubsystemBase;
 import org.wpilib.units.Units;
+import org.wpilib.units.measure.Angle;
 import org.wpilib.units.measure.Voltage;
 
 public class SwerveDrive extends SubsystemBase {
@@ -11,6 +14,7 @@ public class SwerveDrive extends SubsystemBase {
     private final SwerveModule frontRight;
     private final SwerveModule backLeft;
     private final SwerveModule backRight;
+    private Angle rotationAngle;
 
     public SwerveDrive(double widthInches, double heightInches, SwerveModule frontLeft, SwerveModule frontRight, SwerveModule backLeft, SwerveModule backRight) {
         this.widthInches = widthInches;
@@ -19,6 +23,7 @@ public class SwerveDrive extends SubsystemBase {
         this.frontRight = frontRight;
         this.backLeft = backLeft;
         this.backRight = backRight;
+        rotationAngle = Units.Radians.of(Math.atan2(widthInches, heightInches)+(Math.PI/2));
     }
 
     public SwerveDrive(
@@ -110,35 +115,38 @@ public class SwerveDrive extends SubsystemBase {
         backRight.set(new VoltageVector(voltage, Units.Radians.zero()));
     }
 
-    public void localArcadeDrive(double forward, double strafe, double rotation, double maxVoltageVolts) {
-        double halfWidth = widthInches / 2.0;
-        double halfHeight = heightInches / 2.0;
-        double maxDrive = Math.max(1.0, Math.abs(forward) + Math.abs(strafe) + Math.abs(rotation));
+    public void localArcadeDrive(double forward, double strafe, double rotation, double maxVoltageVolts) {        
+        VoltageVector DriveVector = new VoltageVector(Units.Volts.of(Math.hypot(forward, strafe)*maxVoltageVolts/2), Units.Radians.of(Math.atan2(strafe, forward)));
 
-        double flX = (strafe + rotation * halfWidth) / maxDrive;
-        double flY = (forward + rotation * halfHeight) / maxDrive;
-        double frX = (strafe - rotation * halfWidth) / maxDrive;
-        double frY = (forward + rotation * halfHeight) / maxDrive;
-        double blX = (strafe + rotation * halfWidth) / maxDrive;
-        double blY = (forward - rotation * halfHeight) / maxDrive;
-        double brX = (strafe - rotation * halfWidth) / maxDrive;
-        double brY = (forward - rotation * halfHeight) / maxDrive;
+        // Get rotation vector components
+        double rotX = rotation * maxVoltageVolts / 2 * Math.cos(rotationAngle.in(Units.Radians));
+        double rotY = rotation * maxVoltageVolts / 2 * Math.sin(rotationAngle.in(Units.Radians));
 
-        double flMagnitude = Math.hypot(flX, flY);
-        double frMagnitude = Math.hypot(frX, frY);
-        double blMagnitude = Math.hypot(blX, blY);
-        double brMagnitude = Math.hypot(brX, brY);
-        double largestMagnitude = Math.max(1.0, Math.max(flMagnitude, Math.max(frMagnitude, Math.max(blMagnitude, brMagnitude))));
+        // Module 1 (frontLeft): horizontal flip (negate x)
+        Angle angle1 = Units.Radians.of(Math.atan2(rotY, -rotX));
+        // Module 2 (frontRight): normal
+        Angle angle2 = rotationAngle;
+        // Module 3 (backLeft): normal (180 offset)
+        Angle angle3 = rotationAngle.plus(Degrees.of(180));
+        // Module 4 (backRight): vertical flip (negate y)
+        Angle angle4 = Units.Radians.of(Math.atan2(-rotY, rotX));
 
         setModuleVoltages(
-            new VoltageVector(Units.Volts.of((flMagnitude / largestMagnitude) * maxVoltageVolts), Units.Radians.of(Math.atan2(flY, flX))),
-            new VoltageVector(Units.Volts.of((frMagnitude / largestMagnitude) * maxVoltageVolts), Units.Radians.of(Math.atan2(frY, frX))),
-            new VoltageVector(Units.Volts.of((blMagnitude / largestMagnitude) * maxVoltageVolts), Units.Radians.of(Math.atan2(blY, blX))),
-            new VoltageVector(Units.Volts.of((brMagnitude / largestMagnitude) * maxVoltageVolts), Units.Radians.of(Math.atan2(brY, brX)))
+            DriveVector.addVector(new VoltageVector(Units.Volts.of(Math.abs(rotation)*maxVoltageVolts/2), angle1)),
+            DriveVector.addVector(new VoltageVector(Units.Volts.of(rotation*maxVoltageVolts/2), angle2)),
+            DriveVector.addVector(new VoltageVector(Units.Volts.of(rotation*maxVoltageVolts/2), angle3)),
+            DriveVector.addVector(new VoltageVector(Units.Volts.of(Math.abs(rotation)*maxVoltageVolts/2), angle4))
         );
     }
 
     public void localArcadeDrive(double forward, double strafe, double rotation) {
         localArcadeDrive(forward, strafe, rotation, 12.0);
+    }
+
+    public void resetEncoders() {
+        frontLeft.resetEncoders();
+        frontRight.resetEncoders();
+        backLeft.resetEncoders();
+        backRight.resetEncoders();
     }
 }

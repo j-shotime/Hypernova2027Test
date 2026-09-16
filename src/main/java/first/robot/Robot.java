@@ -33,6 +33,7 @@ import org.wpilib.units.measure.Voltage;
 
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.ClosedLoopGeneralConfigs;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.FeedbackConfigs;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
@@ -55,6 +56,7 @@ public class Robot extends TimedRobot {
   private Command autonomousCommand;
 
   private final RobotContainer robotContainer;
+  private final first.robot.custom.VexController controller = new first.robot.custom.VexController(0);
   
   TalonFX BackRightSteer = new TalonFX(0, CANBus.systemcore(0)); 
   TalonFX BackRightDrive = new TalonFX(1, CANBus.systemcore(0));
@@ -75,6 +77,10 @@ public class Robot extends TimedRobot {
       new MotorOutputConfigs()
           .withNeutralMode(NeutralModeValue.Brake)
   )
+  .withClosedLoopGeneral(
+      new ClosedLoopGeneralConfigs()
+          .withContinuousWrap(true)
+  )
   .withCurrentLimits(
       new CurrentLimitsConfigs()
           .withStatorCurrentLimit(Amps.of(60))
@@ -90,6 +96,7 @@ public class Robot extends TimedRobot {
           .withKD(5.35)
           .withKS(0.19)
   );
+  
 
   private final TalonFXConfiguration driveConfiguration = new TalonFXConfiguration()
   .withMotorOutput(
@@ -165,7 +172,7 @@ public class Robot extends TimedRobot {
   public void autonomousPeriodic() {}
   @Override
   public void teleopInit() {
-    BackRightModule.set(new VoltageVector(Voltage.ofRelativeUnits(1, Volt), Angle.ofRelativeUnits(180, Degrees)));
+    
     // This makes sure that the autonomous stops running when
     // teleop starts running. If you want the autonomous to
     // continue until interrupted by another command, remove
@@ -176,8 +183,7 @@ public class Robot extends TimedRobot {
   }
   
   Command resetCommand = new InstantCommand(() -> {
-    BackRightSteer.setPosition(0);
-    BackRightDrive.setPosition(0);
+    swerveDrive.resetEncoders();
   });
   
   double t = 0;
@@ -185,6 +191,7 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() 
   {
+    swerveDrive.localArcadeDrive(controller.getLeftY(), controller.getLeftX(), controller.getRightX());
   }
 
   @Override

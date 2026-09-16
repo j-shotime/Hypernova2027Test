@@ -3,6 +3,7 @@ package first.robot.subsystems.drivetrain;
 import org.wpilib.units.measure.Angle;
 import org.wpilib.units.measure.Voltage;
 import org.wpilib.units.Units;
+import org.wpilib.units.VoltageUnit;
 
 public record VoltageVector(
     Voltage voltage,
@@ -13,6 +14,12 @@ public record VoltageVector(
     {
         this.voltage = voltage;
         this.angle = normalize(angle);
+    }
+
+    public VoltageVector addVector(VoltageVector other) {
+        Voltage newVoltage = Units.Volts.of(Math.hypot(this.x().plus(other.x()).in(Units.Volts), this.y().plus(other.y()).in(Units.Volts)));
+        Angle newAngle = Units.Radians.of(Math.atan2(this.y().plus(other.y()).in(Units.Volts), this.x().plus(other.x()).in(Units.Volts)));
+        return new VoltageVector(newVoltage, newAngle);
     }
 
     private static Angle normalize(Angle angle) {
