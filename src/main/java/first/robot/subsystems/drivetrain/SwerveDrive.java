@@ -8,6 +8,8 @@ import org.wpilib.units.measure.Angle;
 import org.wpilib.units.measure.Voltage;
 
 public class SwerveDrive extends SubsystemBase {
+    private static final double TRANSLATION_ANGLE_HOLD_THRESHOLD = 0.08;
+    private static final double TRANSLATION_ANGLE_DENOISE_ALPHA = 0.18;
     private final double widthInches;
     private final double heightInches;
     private final SwerveModule frontLeft;
@@ -15,6 +17,7 @@ public class SwerveDrive extends SubsystemBase {
     private final SwerveModule backLeft;
     private final SwerveModule backRight;
     private Angle rotationAngle;
+    private Angle lastTranslationAngle = Units.Radians.zero();
 
     public SwerveDrive(double widthInches, double heightInches, SwerveModule frontLeft, SwerveModule frontRight, SwerveModule backLeft, SwerveModule backRight) {
         this.widthInches = widthInches;
@@ -116,7 +119,18 @@ public class SwerveDrive extends SubsystemBase {
     }
 
     public void localArcadeDrive(double forward, double strafe, double rotation, double maxVoltageVolts) {        
-        VoltageVector DriveVector = new VoltageVector(Units.Volts.of(Math.hypot(forward, strafe)*maxVoltageVolts/2), Units.Radians.of(Math.atan2(strafe, forward)));
+        if (Math.abs(forward) < 1e-6 && Math.abs(strafe) < 1e-6 && Math.abs(rotation) < 1e-6) {
+            stop();
+            return;
+        }
+
+        double translationMagnitude = Math.hypot(forward, strafe);
+        if (translationMagnitude >= TRANSLATION_ANGLE_HOLD_THRESHOLD) {
+            Angle targetTranslationAngle = Units.Radians.of(Math.atan2(strafe, forward));
+            lastTranslationAngle = blendAngles(lastTranslationAngle, targetTranslationAngle, TRANSLATION_ANGLE_DENOISE_ALPHA);
+        }
+
+        VoltageVector DriveVector = new VoltageVector(Units.Volts.of(translationMagnitude * maxVoltageVolts / 2), lastTranslationAngle);
 
         // Get rotation vector components
         double rotX = rotation * maxVoltageVolts / 2 * Math.cos(rotationAngle.in(Units.Radians));
@@ -148,5 +162,20 @@ public class SwerveDrive extends SubsystemBase {
         frontRight.resetEncoders();
         backLeft.resetEncoders();
         backRight.resetEncoders();
+    }
+
+    private static Angle blendAngles(Angle current, Angle target, double alpha) {
+        double currentRadians = current.in(Units.Radians);
+        double targetRadians = target.in(Units.Radians);
+        double deltaRadians = targetRadians - currentRadians;
+
+        while (deltaRadians > Math.PI) {
+            deltaRadians -= 2 * Math.PI;
+        }
+        while (deltaRadians < -Math.PI) {
+            deltaRadians += 2 * Math.PI;
+        }
+
+        return Units.Radians.of(currentRadians + deltaRadians * alpha);
     }
 }

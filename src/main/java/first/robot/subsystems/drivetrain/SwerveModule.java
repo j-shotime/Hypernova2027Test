@@ -13,7 +13,6 @@ import com.ctre.phoenix6.hardware.TalonFX;
 public class SwerveModule {
     private final TalonFX driveMotor;
     private final TalonFX steerMotor;
-    private Angle currentSteerAngle = Units.Radians.zero();
 
     public SwerveModule(TalonFX driveMotor, TalonFX steerMotor) {
         this.driveMotor = driveMotor;
@@ -34,22 +33,31 @@ public class SwerveModule {
     public void set(VoltageVector voltageVector) {
         Voltage driveVoltage = voltageVector.voltage();
         Angle steerAngle = voltageVector.angle();
-
+        Angle currentSteerAngle = steerMotor.getPosition().getValue();
         double currentRadians = currentSteerAngle.in(Units.Radians);
         double targetRadians = steerAngle.in(Units.Radians);
+
+        // Compute signed shortest difference in [-PI, PI]
         double deltaRadians = targetRadians - currentRadians;
+        while (deltaRadians > Math.PI) deltaRadians -= 2 * Math.PI;
+        while (deltaRadians < -Math.PI) deltaRadians += 2 * Math.PI;
 
-        while (deltaRadians > Math.PI) {
-            deltaRadians -= 2 * Math.PI;
-        }
-        while (deltaRadians < -Math.PI) {
-            deltaRadians += 2 * Math.PI;
-        }
-
-        if (Math.abs(deltaRadians) > Math.PI / 2) {
+        Angle chosenAngle;
+        if (Math.abs(deltaRadians) < Math.PI) {
+            // If the difference is less than PI, use the requested angle
+            chosenAngle = Units.Radians.of(targetRadians);
+        } else {
+            // Otherwise use (a - PI) mod 2PI and reverse drive so steering travel is minimal
             driveVoltage = driveVoltage.times(-1);
-            steerAngle = steerAngle.plus(Units.Degrees.of(180));
+            double alt = targetRadians - Math.PI;
+            // normalize alt to [0, 2PI)
+            alt %= 2 * Math.PI;
+            if (alt < 0) alt += 2 * Math.PI;
+            chosenAngle = Units.Radians.of(alt);
         }
+
+        // Ensure chosenAngle is a normalized radians Angle
+        steerAngle = Units.Radians.of(chosenAngle.in(Units.Radians));
 
         driveMotor.setVoltage(driveVoltage);
         if(voltageVector.voltage().in(Units.Volts) == 0) {
@@ -69,6 +77,5 @@ public class SwerveModule {
         if (steerMotor != null) {
             steerMotor.setPosition(0);
         }
-        currentSteerAngle = Units.Radians.zero();
     }
 }

@@ -5,6 +5,7 @@ import org.wpilib.driverstation.GenericHID.RumbleType;
 
 public class VexController {
     private final GenericHID hid;
+    private static final double AXIS_DEADBAND = 0.05;
 
     // Constructor
     public VexController(int port) {
@@ -17,19 +18,19 @@ public class VexController {
 
     // Getters for axes (left stick, right stick, triggers, etc.)
     public double getLeftX() {
-        return hid.getRawAxis(0);
+        return driveCurve(hid.getRawAxis(0));
     }
 
     public double getLeftY() {
-        return -hid.getRawAxis(1);
+        return -driveCurve(hid.getRawAxis(1));
     }
 
     public double getRightX() {
-        return hid.getRawAxis(2);
+        return driveCurve(hid.getRawAxis(2));
     }
 
     public double getRightY() {
-        return -hid.getRawAxis(3);
+        return -driveCurve(hid.getRawAxis(3));
     }
 
     // Button getters - Face buttons
@@ -112,5 +113,15 @@ public class VexController {
 
     public void setRumble(RumbleType type, double value) {
         hid.setRumble(type, value);
+    }
+
+    private static double driveCurve(double value) {
+        if (Math.abs(value) < AXIS_DEADBAND) {
+            return 0.0;
+        }
+
+        double scaledValue = (Math.abs(value) - AXIS_DEADBAND) / (1.0 - AXIS_DEADBAND);
+        double curvedValue = Math.sqrt(scaledValue);
+        return Math.copySign(curvedValue, value);
     }
 }
